@@ -1,0 +1,43 @@
+sources:
+  otlp_grpc:
+    type: opentelemetry
+    grpc:
+      address: "0.0.0.0:4317"
+
+  otlp_http:
+    type: opentelemetry
+    http:
+      address: "0.0.0.0:4318"
+
+transforms:
+  merge_inputs:
+    type: route
+    inputs: ["otlp_grpc", "otlp_http"]
+    route:
+      logs: '.telemetry_type == "logs"'
+      metrics: '.telemetry_type == "metrics"'
+      traces: '.telemetry_type == "traces"'
+
+sinks:
+  victoria_metrics:
+    type: prometheus_remote_write
+    inputs: ["merge_inputs.metrics"]
+    endpoint: "http://victoria-metrics:8428/api/v1/write"
+
+  victoria_logs:
+    type: http
+    inputs: ["merge_inputs.logs"]
+    uri: "http://victoria-logs:9428/insert/opentelemetry/v1/logs"
+    encoding:
+      codec: json
+    headers:
+      Content-Type: "application/json"
+
+  victoria_traces:
+    type: http
+    inputs: ["merge_inputs.traces"]
+    uri: "http://victoria-traces:9999/opentelemetry/v1/traces"
+    encoding:
+      codec: json
+    headers:
+      Content-Type: "application/json"
